@@ -1,0 +1,31 @@
+# --- Core ---
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+Flask-Cors==4.0.1
+
+# --- Database ---
+psycopg2-binary==2.9.9      # PostgreSQL driver
+SQLAlchemy==2.0.30
+
+# --- Cache (每日排行榜) ---
+redis==5.0.4
+
+# --- Config / Utils ---
+python-dotenv==1.0.1
+
+# --- Auth / SSO (Phase 5) ---
+PyJWT==2.9.0
+requests==2.32.3             # Google id_token 驗證 / 賽事 API
+
+# --- AI 微服務 (Phase 5) ---
+anthropic==0.69.0            # Claude 賽況分析與勝率預測
+
+# --- 排程 (Phase 5：Cron 自動結算 / 賽果同步) ---
+APScheduler==3.10.4
+
+# --- 部署 ---
+gunicorn==22.0.0
+
+# --- 預留：網民風向爬蟲 ---
+# beautifulsoup4==4.12.3

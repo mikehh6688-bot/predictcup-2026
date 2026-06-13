@@ -1,0 +1,59 @@
+# PredictCup 2026 — 本地 / 單機部署。
+# 啟動：docker compose up --build
+#   前端 http://localhost:3000  · 後端 http://localhost:5001
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: predictcup
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/predictcup
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-change-me}
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      # 單一 worker + 排程器啟用（行程內 BackgroundScheduler）
+      GUNICORN_WORKERS: "1"
+      SCHEDULER_ENABLED: "true"
+      # 選填：填入後啟用真實 SSO / AI / 賽事同步
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SPORTS_API_KEY: ${SPORTS_API_KEY:-}
+    ports:
+      - "5001:5001"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # NEXT_PUBLIC_ 為編譯期注入；瀏覽器需可連到後端
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:5001/api/v1}
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
