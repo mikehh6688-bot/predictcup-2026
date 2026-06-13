@@ -38,7 +38,10 @@
       "Bash(git init *)",
       "Bash(git config *)",
       "Bash(git add *)",
-      "Bash(grep -E \"\\\\.venv/|node_modules/|\\\\.next/|\\\\.db$|/__pycache__/\")"
+      "Bash(grep -E \"\\\\.venv/|node_modules/|\\\\.next/|\\\\.db$|/__pycache__/\")",
+      "Bash(git commit *)",
+      "Bash(gh auth *)",
+      "Bash(gh api *)"
     ]
   }
 }
