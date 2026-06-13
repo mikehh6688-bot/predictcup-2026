@@ -2,6 +2,9 @@
 .DS_Store
 Thumbs.db
 
+# --- Claude Code 本機設定（permissions 等，因機而異）---
+.claude/settings.local.json
+
 # --- Env / secrets ---
 .env
 .env.local
