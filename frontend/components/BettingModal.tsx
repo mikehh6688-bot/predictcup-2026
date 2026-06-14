@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X, Zap, ShieldCheck, Flame } from "lucide-react";
 import type { Match, BetChoice, User } from "@/lib/types";
-import { FLAG, STAGE_LABEL } from "@/lib/constants";
+import { flagEmoji, STAGE_LABEL } from "@/lib/constants";
 import { api, ApiError } from "@/lib/api";
 
 export default function BettingModal({
@@ -105,11 +105,11 @@ export default function BettingModal({
         {/* 對戰 */}
         <div className="mb-5 flex items-center justify-center gap-3 text-base font-bold">
           <span>
-            {match.home_team_code ? FLAG[match.home_team_code] : "🏳️"} {match.home_team}
+            {flagEmoji(match.home_team_code)} {match.home_team}
           </span>
           <span className="text-gray-300">VS</span>
           <span>
-            {match.away_team} {match.away_team_code ? FLAG[match.away_team_code] : "🏳️"}
+            {match.away_team} {flagEmoji(match.away_team_code)}
           </span>
         </div>
 

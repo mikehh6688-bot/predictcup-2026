@@ -1,7 +1,8 @@
-"""第三方賽事數據整合 — 以 API-Football 為例，自動同步賽果。
+"""第三方賽事數據整合 — API-Football，匯入世界盃賽程並自動同步賽果。
 
-無 SPORTS_API_KEY 時所有方法安全地回傳空集合（不阻斷排程）。
-比對策略：優先以 Match.external_ref 對應 fixture id，其次以隊名近似比對。
+策略：以 league + season 一次抓取整個世界盃賽程（含未開賽/進行中/已完賽），
+upsert 進 Match（以 fixture id 對應 external_ref）。已完賽者觸發結算。
+無 SPORTS_API_KEY 時所有方法安全回傳空集合（不阻斷排程 / 測試）。
 """
 from datetime import datetime
 
@@ -9,84 +10,151 @@ from flask import current_app
 
 from ..extensions import db
 from ..models import Match
-from ..constants import MatchStatus, MatchStage, BetChoice
+from ..constants import MatchStatus, MatchStage, BetChoice, STAGE_MULTIPLIER
 from . import settlement
 
-# API-Football fixture.status.short 代表「已完賽」的狀態碼
-_FINISHED_CODES = {"FT", "AET", "PEN"}
+# API-Football fixture.status.short 分類
+_FINISHED = {"FT", "AET", "PEN"}
+_LIVE = {"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "INT"}
+
+# league.round 關鍵字 → 賽事階段
+_ROUND_TO_STAGE = [
+    ("group", MatchStage.GROUP),
+    ("16", MatchStage.R16),
+    ("quarter", MatchStage.QF),
+    ("semi", MatchStage.SF),
+    ("3rd place", MatchStage.FINAL),
+    ("final", MatchStage.FINAL),
+]
+
+# 常見國家隊名 → ISO3（供前端國旗顯示；未命中則留空走預設旗）
+_NAME_TO_CODE = {
+    "Brazil": "BRA", "Argentina": "ARG", "France": "FRA", "England": "ENG",
+    "Spain": "ESP", "Germany": "GER", "Portugal": "POR", "Netherlands": "NED",
+    "Japan": "JPN", "USA": "USA", "United States": "USA", "Mexico": "MEX",
+    "Canada": "CAN", "Italy": "ITA", "Belgium": "BEL", "Croatia": "CRO",
+    "Uruguay": "URU", "Morocco": "MAR", "South Korea": "KOR",
+}
 
 
-def _headers():
-    return {"x-apisports-key": current_app.config["SPORTS_API_KEY"]}
+def _stage_for(round_str):
+    s = (round_str or "").lower()
+    for keyword, stage in _ROUND_TO_STAGE:
+        if keyword in s:
+            return stage
+    return MatchStage.GROUP
 
 
-def fetch_results_for_date(date_str):
-    """抓取某日（YYYY-MM-DD）已完賽的賽果，正規化後回傳 list。"""
+def _status_for(short):
+    if short in _FINISHED:
+        return MatchStatus.FINISHED
+    if short in _LIVE:
+        return MatchStatus.LIVE
+    return MatchStatus.SCHEDULED
+
+
+def fetch_world_cup_fixtures():
+    """抓取整個世界盃賽程（依 league + season）。回傳 API-Football 原始 list。"""
     if not current_app.config.get("SPORTS_API_KEY"):
         return []
     import requests
 
-    base = current_app.config["SPORTS_API_BASE"]
     try:
         resp = requests.get(
-            f"{base}/fixtures", params={"date": date_str},
-            headers=_headers(), timeout=8,
+            f"{current_app.config['SPORTS_API_BASE']}/fixtures",
+            params={
+                "league": current_app.config["SPORTS_LEAGUE_ID"],
+                "season": current_app.config["SPORTS_SEASON"],
+            },
+            headers={"x-apisports-key": current_app.config["SPORTS_API_KEY"]},
+            timeout=10,
         )
         resp.raise_for_status()
-        payload = resp.json()
+        return resp.json().get("response", [])
     except requests.RequestException:
         return []
 
-    results = []
-    for item in payload.get("response", []):
-        fixture = item.get("fixture", {})
-        if fixture.get("status", {}).get("short") not in _FINISHED_CODES:
-            continue
-        teams, goals = item.get("teams", {}), item.get("goals", {})
-        results.append({
-            "external_ref": str(fixture.get("id")),
-            "home_team": teams.get("home", {}).get("name"),
-            "away_team": teams.get("away", {}).get("name"),
-            "home_score": goals.get("home"),
-            "away_score": goals.get("away"),
-            "winner_home": teams.get("home", {}).get("winner"),
-        })
-    return results
 
+def _upsert(item):
+    """將單筆 fixture upsert 進 Match；回傳 (match, is_new, became_finished)。"""
+    fixture = item.get("fixture", {})
+    teams, goals, league = item.get("teams", {}), item.get("goals", {}), item.get("league", {})
+    ref = str(fixture.get("id"))
 
-def _match_for(result):
-    """以 external_ref → 隊名 的順序找出本地對應賽事。"""
-    m = Match.query.filter_by(external_ref=result["external_ref"]).first()
-    if m:
-        return m
-    return Match.query.filter_by(
-        home_team=result["home_team"], away_team=result["away_team"]
-    ).first()
+    match = Match.query.filter_by(external_ref=ref).first()
+    is_new = match is None
+    if is_new:
+        match = Match(
+            home_team=teams.get("home", {}).get("name", "?"),
+            away_team=teams.get("away", {}).get("name", "?"),
+            kickoff_time=datetime.utcnow(),
+            stage=_stage_for(league.get("round")),
+            external_ref=ref,
+        )
+        db.session.add(match)
 
+    # 共同欄位更新
+    match.home_team = teams.get("home", {}).get("name", match.home_team)
+    match.away_team = teams.get("away", {}).get("name", match.away_team)
+    match.home_team_code = _NAME_TO_CODE.get(match.home_team)
+    match.away_team_code = _NAME_TO_CODE.get(match.away_team)
+    match.stage = _stage_for(league.get("round"))
+    match.multiplier = STAGE_MULTIPLIER.get(match.stage, 1)
+    iso = fixture.get("date")
+    if iso:
+        match.kickoff_time = datetime.fromisoformat(iso.replace("Z", "+00:00")).replace(tzinfo=None)
 
-def sync_results(date_str=None):
-    """抓取賽果寫回本地賽事並觸發結算。回傳統計 dict。"""
-    date_str = date_str or datetime.utcnow().strftime("%Y-%m-%d")
-    synced = settled = 0
-    for r in fetch_results_for_date(date_str):
-        if r["home_score"] is None or r["away_score"] is None:
-            continue
-        match = _match_for(r)
-        if match is None or match.status == MatchStatus.FINISHED:
-            continue
+    short = fixture.get("status", {}).get("short")
+    new_status = _status_for(short)
+    became_finished = (
+        new_status == MatchStatus.FINISHED and match.status != MatchStatus.FINISHED
+    )
 
-        match.home_score = int(r["home_score"])
-        match.away_score = int(r["away_score"])
+    if new_status == MatchStatus.FINISHED:
+        match.home_score = goals.get("home")
+        match.away_score = goals.get("away")
         if match.stage != MatchStage.GROUP:
-            # 淘汰賽：依 API winner 旗標決定晉級隊（PK 也算）
             match.advancing_team = (
-                BetChoice.HOME if r.get("winner_home") else BetChoice.AWAY
+                BetChoice.HOME if teams.get("home", {}).get("winner") else BetChoice.AWAY
             )
-        synced += 1
-        try:
-            settlement.settle_match(match)
-            settled += 1
-        except settlement.SettlementError:
-            db.session.rollback()
+        # 狀態先不設 FINISHED，交由 settle_match 設定（避免重複結算）
+        if not became_finished:
+            match.status = MatchStatus.FINISHED
+    else:
+        match.status = new_status
 
-    return {"synced": synced, "settled": settled, "date": date_str}
+    return match, is_new, became_finished
+
+
+def import_fixtures(replace_demo=False):
+    """匯入/更新世界盃賽程；已完賽者觸發結算。回傳統計。
+
+    replace_demo=True 時先刪除手動建立的 demo 賽事（external_ref 為空）。
+    """
+    fixtures = fetch_world_cup_fixtures()
+    if not fixtures:
+        return {"imported": 0, "updated": 0, "settled": 0, "note": "no fixtures (check SPORTS_API_KEY)"}
+
+    if replace_demo:
+        Match.query.filter(Match.external_ref.is_(None)).delete()
+
+    imported = updated = settled = 0
+    for item in fixtures:
+        match, is_new, became_finished = _upsert(item)
+        imported += 1 if is_new else 0
+        updated += 0 if is_new else 1
+        db.session.flush()
+        if became_finished and match.home_score is not None and match.away_score is not None:
+            try:
+                settlement.settle_match(match)  # 內含 commit
+                settled += 1
+                continue
+            except settlement.SettlementError:
+                db.session.rollback()
+    db.session.commit()
+    return {"imported": imported, "updated": updated, "settled": settled}
+
+
+def sync_results(*_args, **_kwargs):
+    """排程入口：等同匯入最新賽程並結算已完賽。"""
+    return import_fixtures(replace_demo=False)

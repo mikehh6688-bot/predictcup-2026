@@ -27,5 +27,5 @@ APScheduler==3.10.4
 # --- 部署 ---
 gunicorn==22.0.0
 
-# --- 預留：網民風向爬蟲 ---
-# beautifulsoup4==4.12.3
+# --- 維基賽果爬蟲（免金鑰自動同步來源）---
+beautifulsoup4==4.12.3

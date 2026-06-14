@@ -17,9 +17,12 @@ class SettlementError(Exception):
 
 
 def settle_match(match):
-    """結算一場賽事的所有未結算注單。
+    """結算一場賽事 —— 可重入（idempotent）。
 
-    Returns: dict 統計 { "settled": n, "affected_users": m }
+    重複呼叫安全：對「已結算」的注單會先反轉先前加減的積分，再依當前賽果
+    重新計分。因此可用於「修正賽果 / 自動重抓比分後重新結算」。
+
+    Returns: dict 統計 { "settled": n, "affected_users": m, "resettled": k }
     呼叫端負責先設定 home_score/away_score/(advancing_team)。
     """
     if match.home_score is None or match.away_score is None:
@@ -27,10 +30,16 @@ def settle_match(match):
     if match.stage != MatchStage.GROUP and match.advancing_team is None:
         raise SettlementError("淘汰賽須指定晉級隊伍（advancing_team）")
 
-    bets = Bet.query.filter_by(match_id=match.id, is_settled=False).all()
+    bets = Bet.query.filter_by(match_id=match.id).all()  # 全部注單（含已結算）
     affected = set()
+    resettled = 0
 
     for bet in bets:
+        # 反轉先前結算效果（可重入關鍵）
+        if bet.is_settled and bet.points_earned is not None:
+            bet.user.total_points -= bet.points_earned
+            resettled += 1
+
         points, exact_hit = calculate_settlement(
             stage=match.stage,
             multiplier=match.multiplier,
@@ -58,4 +67,4 @@ def settle_match(match):
     for user in affected:
         leaderboard.sync_user(user)
 
-    return {"settled": len(bets), "affected_users": len(affected)}
+    return {"settled": len(bets), "affected_users": len(affected), "resettled": resettled}

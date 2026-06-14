@@ -169,8 +169,30 @@ def test_ai_generate_heuristic_fallback(client):
     assert p["analysis"]
 
 
-def test_sync_results_no_key_is_safe(client):
-    # 無 SPORTS_API_KEY → 安全回傳 0，不丟錯
-    r = client.post("/api/v1/matches/sync-results")
+def test_resettle_reverses_and_reapplies(client):
+    # 可重入結算：修正賽果後分數正確重算（先反轉舊分再套新分）
+    token, _ = _login(client, "mike")
+    m = _create_match(client, stage="group")
+    client.post("/api/v1/bets", headers=_auth(token),
+                json={"match_id": m["id"], "predicted_result": "home"})
+    # 主勝 2:1 → 猜中得 +2 → 102
+    client.patch(f"/api/v1/matches/{m['id']}/result",
+                 json={"home_score": 2, "away_score": 1})
+    me = client.get("/api/v1/auth/me", headers=_auth(token)).get_json()
+    assert me["total_points"] == 102
+
+    # 修正為客勝 0:2 → 反轉 +2、改判猜錯扣 2 → 100 - 2 = 98
+    r = client.patch(f"/api/v1/matches/{m['id']}/result",
+                     json={"home_score": 0, "away_score": 2})
     assert r.status_code == 200
-    assert r.get_json()["synced"] == 0
+    assert r.get_json()["settlement"]["resettled"] == 1
+    me = client.get("/api/v1/auth/me", headers=_auth(token)).get_json()
+    assert me["total_points"] == 98
+
+
+def test_import_fixtures_no_key_is_safe(client):
+    # 無 SPORTS_API_KEY → 安全回傳 0，不丟錯
+    r = client.post("/api/v1/matches/import-fixtures")
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["imported"] == 0 and body["settled"] == 0

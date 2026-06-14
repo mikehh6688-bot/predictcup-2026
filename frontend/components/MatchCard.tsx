@@ -2,7 +2,7 @@
 
 import { Clock, Flame } from "lucide-react";
 import type { Match } from "@/lib/types";
-import { FLAG, STAGE_LABEL } from "@/lib/constants";
+import { flagEmoji, STAGE_LABEL } from "@/lib/constants";
 import { formatKickoff } from "@/lib/format";
 import AiBar from "./AiBar";
 
@@ -91,7 +91,7 @@ function TeamSide({
         align === "right" ? "flex-row-reverse text-right" : ""
       }`}
     >
-      <span className="text-3xl leading-none">{code ? FLAG[code] ?? "🏳️" : "🏳️"}</span>
+      <span className="text-3xl leading-none">{flagEmoji(code)}</span>
       <span className="text-sm font-semibold text-gray-800">{name}</span>
     </div>
   );

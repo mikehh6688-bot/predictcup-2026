@@ -131,6 +131,21 @@ export const api = {
       request<{ matches: Match[] }>(`/matches${status ? `?status=${status}` : ""}`),
     featured: () => request<{ matches: Match[] }>("/matches/featured"),
     get: (id: number) => request<MatchDetail>(`/matches/${id}`),
+    // 後台：更新賽果並觸發結算
+    updateResult: (
+      id: number,
+      body: { home_score: number; away_score: number; advancing_team?: "home" | "away" | null }
+    ) =>
+      request<{ match: Match; settlement: { settled: number; affected_users: number } }>(
+        `/matches/${id}/result`,
+        { method: "PATCH", body }
+      ),
+    // 後台：自動上網收集最新賽果並重新結算
+    autoSync: () =>
+      request<{ source: string; updated: number; settled: number }>(
+        "/matches/auto-sync",
+        { method: "POST" }
+      ),
   },
 
   bets: {

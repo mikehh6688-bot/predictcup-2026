@@ -13,7 +13,7 @@ import logging
 from ..extensions import db
 from ..models import Match
 from ..constants import MatchStatus
-from . import settlement, sports_api
+from . import settlement, sync_service
 
 log = logging.getLogger(__name__)
 _scheduler = None
@@ -41,13 +41,15 @@ def auto_settle(app):
 
 
 def sync_results(app):
-    """從第三方 API 同步當日賽果。"""
+    """自動同步最新賽果（API-Football 或維基爬蟲）。"""
     with app.app_context():
-        if not app.config.get("SPORTS_API_KEY"):
+        try:
+            stats = sync_service.auto_sync()
+        except Exception as e:  # 外部來源不穩定，不讓排程崩潰
+            log.warning("auto_sync 失敗：%s", e)
             return
-        stats = sports_api.sync_results()
-        if stats["synced"]:
-            log.info("sync_results: %s", stats)
+        if stats.get("settled") or stats.get("updated"):
+            log.info("auto_sync: %s", stats)
 
 
 def init_scheduler(app):

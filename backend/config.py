@@ -39,6 +39,9 @@ class Config:
     # --- 第三方賽事 API（Phase 5）---
     SPORTS_API_KEY = os.environ.get("SPORTS_API_KEY")
     SPORTS_API_BASE = os.environ.get("SPORTS_API_BASE", "https://v3.football.api-sports.io")
+    # API-Football：FIFA World Cup league id = 1；2026 賽季 season = 2026
+    SPORTS_LEAGUE_ID = int(os.environ.get("SPORTS_LEAGUE_ID", "1"))
+    SPORTS_SEASON = int(os.environ.get("SPORTS_SEASON", "2026"))
 
     # --- 排程器（Cron 自動結算 / 賽果同步）---
     SCHEDULER_ENABLED = os.environ.get("SCHEDULER_ENABLED", "false").lower() == "true"

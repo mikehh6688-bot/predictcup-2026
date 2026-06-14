@@ -126,8 +126,7 @@ def update_result(match_id):
     match = db.session.get(Match, match_id)
     if match is None:
         return error("NOT_FOUND", "賽事不存在", 404)
-    if match.status == MatchStatus.FINISHED:
-        return error("ALREADY_SETTLED", "賽事已結算", 409)
+    # 允許對已結算賽事再次更新（結算為可重入，會自動重算）
 
     data = request.get_json(silent=True) or {}
     if "home_score" not in data or "away_score" not in data:
@@ -153,14 +152,26 @@ def update_result(match_id):
     return ok({"match": match.to_dict(), "settlement": result})
 
 
-@bp.post("/sync-results")
-def sync_results():
-    """手動觸發第三方賽事 API 賽果同步（排程外的維運入口）。
+@bp.post("/auto-sync")
+def auto_sync():
+    """自動上網收集最新賽果並重新結算。
 
-    Query: ?date=YYYY-MM-DD（預設今日）
+    來源：有 SPORTS_API_KEY 走 API-Football，否則爬維基百科（免金鑰）。
+    可重複執行（結算為可重入）。
     """
-    stats = sports_api.sync_results(request.args.get("date"))
-    return ok(stats)
+    from ..services import sync_service
+    return ok(sync_service.auto_sync())
+
+
+@bp.post("/import-fixtures")
+def import_fixtures():
+    """從 API-Football 匯入/更新世界盃賽程，並結算已完賽。
+
+    Query: ?replace_demo=true 先清除手動建立的 demo 賽事
+    需設定 SPORTS_API_KEY（未設則回傳 note 提示）。
+    """
+    replace = request.args.get("replace_demo") == "true"
+    return ok(sports_api.import_fixtures(replace_demo=replace))
 
 
 @bp.post("/<int:match_id>/ai-generate")

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LogOut, Zap, ShieldCheck, Ticket } from "lucide-react";
+import { LogOut, Zap, ShieldCheck, Ticket, Settings, ChevronRight } from "lucide-react";
 import { Spinner } from "@/components/states";
 import { useSession } from "@/components/SessionProvider";
 import GoogleSignIn from "@/components/GoogleSignIn";
@@ -49,6 +49,18 @@ export default function ProfilePage() {
           </span>
         </div>
       </div>
+
+      {/* 後台入口 */}
+      <a
+        href="/admin"
+        className="mt-3 flex items-center justify-between rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm shadow-sm"
+      >
+        <span className="flex items-center gap-2 font-medium text-gray-700">
+          <Settings size={16} className="text-emerald-600" />
+          後台 · 更新賽果
+        </span>
+        <ChevronRight size={16} className="text-gray-300" />
+      </a>
 
       <BetHistory userId={user.id} />
     </main>
