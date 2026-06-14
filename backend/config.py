@@ -32,6 +32,10 @@ class Config:
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")  # 驗證 Google id_token 的 audience
     ALLOW_DEV_LOGIN = os.environ.get("ALLOW_DEV_LOGIN", "true").lower() == "true"
 
+    # 管理者名單（登入時比對 email 或 username，命中即授予 is_admin）
+    ADMIN_EMAILS = os.environ.get("ADMIN_EMAILS", "mike.hsieh72@gmail.com")
+    ADMIN_USERNAMES = os.environ.get("ADMIN_USERNAMES", "Mike")
+
     # --- AI 微服務（Phase 5）---
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
     AI_MODEL = os.environ.get("AI_MODEL", "claude-opus-4-8")

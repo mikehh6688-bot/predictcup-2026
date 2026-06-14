@@ -44,6 +44,8 @@ class User(db.Model):
     double_cards = db.Column(db.Integer, nullable=False, default=3)      # 翻倍卡
     insurance_cards = db.Column(db.Integer, nullable=False, default=1)   # 保險卡
 
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)      # 管理者（可進後台）
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
@@ -61,6 +63,7 @@ class User(db.Model):
             "total_points": self.total_points,
             "double_cards": self.double_cards,
             "insurance_cards": self.insurance_cards,
+            "is_admin": self.is_admin,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

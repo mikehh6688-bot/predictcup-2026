@@ -7,7 +7,7 @@ from ..extensions import db
 from ..models import Match, Bet
 from ..constants import MatchStatus, MatchStage, BetChoice, STAGE_MULTIPLIER
 from ..services import settlement, ai_predictor, sports_api
-from ._helpers import error, ok, parse_enum
+from ._helpers import error, ok, parse_enum, admin_required
 
 STAGE_LABELS = {
     MatchStage.GROUP: "小組賽",
@@ -90,8 +90,9 @@ def get_match(match_id):
 
 
 @bp.post("")
-def create_match():
-    """建立賽事（MVP 手動建置）。multiplier 由 stage 自動推導。"""
+@admin_required
+def create_match(user):
+    """建立賽事（管理者）。multiplier 由 stage 自動推導。"""
     data = request.get_json(silent=True) or {}
     required = ["home_team", "away_team", "kickoff_time", "stage"]
     missing = [f for f in required if not data.get(f)]
@@ -118,8 +119,9 @@ def create_match():
 
 
 @bp.patch("/<int:match_id>/result")
-def update_result(match_id):
-    """更新賽果並觸發結算（狀態轉 finished）。
+@admin_required
+def update_result(user, match_id):
+    """更新賽果並觸發結算（管理者；狀態轉 finished）。
 
     Request JSON: { "home_score", "away_score", "advancing_team": "home"|"away"|null }
     """
@@ -153,8 +155,9 @@ def update_result(match_id):
 
 
 @bp.post("/auto-sync")
-def auto_sync():
-    """自動上網收集最新賽果並重新結算。
+@admin_required
+def auto_sync(user):
+    """自動上網收集最新賽果並重新結算（管理者）。
 
     來源：有 SPORTS_API_KEY 走 API-Football，否則爬維基百科（免金鑰）。
     可重複執行（結算為可重入）。
@@ -164,8 +167,9 @@ def auto_sync():
 
 
 @bp.post("/import-fixtures")
-def import_fixtures():
-    """從 API-Football 匯入/更新世界盃賽程，並結算已完賽。
+@admin_required
+def import_fixtures(user):
+    """從 API-Football 匯入/更新世界盃賽程，並結算已完賽（管理者）。
 
     Query: ?replace_demo=true 先清除手動建立的 demo 賽事
     需設定 SPORTS_API_KEY（未設則回傳 note 提示）。
@@ -175,8 +179,9 @@ def import_fixtures():
 
 
 @bp.post("/<int:match_id>/ai-generate")
-def ai_generate(match_id):
-    """觸發 Claude 產生 AI 勝率預測 + 網民風向並寫入賽事。"""
+@admin_required
+def ai_generate(user, match_id):
+    """觸發 Claude 產生 AI 勝率預測 + 網民風向並寫入賽事（管理者）。"""
     match = db.session.get(Match, match_id)
     if match is None:
         return error("NOT_FOUND", "賽事不存在", 404)
@@ -185,8 +190,9 @@ def ai_generate(match_id):
 
 
 @bp.patch("/<int:match_id>/ai-prediction")
-def update_ai_prediction(match_id):
-    """手動寫入 AI 勝率與網民風向（外部來源覆寫用）。"""
+@admin_required
+def update_ai_prediction(user, match_id):
+    """手動寫入 AI 勝率與網民風向（管理者；外部來源覆寫用）。"""
     match = db.session.get(Match, match_id)
     if match is None:
         return error("NOT_FOUND", "賽事不存在", 404)

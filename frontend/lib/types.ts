@@ -16,6 +16,7 @@ export interface User {
   total_points: number;
   double_cards: number; // 翻倍卡
   insurance_cards: number; // 保險卡
+  is_admin: boolean; // 管理者（可進後台）
   created_at: string;
 }
 

@@ -48,3 +48,16 @@ def login_required(fn):
             return error("UNAUTHORIZED", "請先登入", 401)
         return fn(user, *args, **kwargs)
     return wrapper
+
+
+def admin_required(fn):
+    """需管理者權限；通過後將 user 注入為第一個參數。"""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        user = current_user()
+        if user is None:
+            return error("UNAUTHORIZED", "請先登入", 401)
+        if not user.is_admin:
+            return error("FORBIDDEN", "需要管理者權限", 403)
+        return fn(user, *args, **kwargs)
+    return wrapper

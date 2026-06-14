@@ -50,17 +50,19 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* 後台入口 */}
-      <a
-        href="/admin"
-        className="mt-3 flex items-center justify-between rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm shadow-sm"
-      >
-        <span className="flex items-center gap-2 font-medium text-gray-700">
-          <Settings size={16} className="text-emerald-600" />
-          後台 · 更新賽果
-        </span>
-        <ChevronRight size={16} className="text-gray-300" />
-      </a>
+      {/* 後台入口（僅管理者可見）*/}
+      {user.is_admin && (
+        <a
+          href="/admin"
+          className="mt-3 flex items-center justify-between rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm shadow-sm"
+        >
+          <span className="flex items-center gap-2 font-medium text-gray-700">
+            <Settings size={16} className="text-emerald-600" />
+            後台 · 更新賽果
+          </span>
+          <ChevronRight size={16} className="text-gray-300" />
+        </a>
+      )}
 
       <BetHistory userId={user.id} />
     </main>

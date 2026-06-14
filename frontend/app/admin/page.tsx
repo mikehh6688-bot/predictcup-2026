@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Settings, RefreshCw, Check } from "lucide-react";
+import { Settings, RefreshCw, Check, Lock } from "lucide-react";
 import { Spinner, ErrorState } from "@/components/states";
+import { useSession } from "@/components/SessionProvider";
 import { flagEmoji, STAGE_LABEL } from "@/lib/constants";
 import { api, ApiError } from "@/lib/api";
 import type { Match } from "@/lib/types";
@@ -15,6 +16,7 @@ import { formatKickoff } from "@/lib/format";
  * 注意：此頁無權限控管，僅供本機 / 信任環境維運使用。
  */
 export default function AdminPage() {
+  const { user, token, loading } = useSession();
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -35,10 +37,11 @@ export default function AdminPage() {
   useEffect(() => load(), [load]);
 
   async function autoSync() {
+    if (!token) return;
     setSyncing(true);
     setSyncMsg(null);
     try {
-      const r = await api.matches.autoSync();
+      const r = await api.matches.autoSync(token);
       const src = r.source === "wikipedia" ? "維基百科" : "API-Football";
       setSyncMsg(`已從${src}更新 ${r.updated} 場、結算 ${r.settled} 場`);
       load();
@@ -49,6 +52,9 @@ export default function AdminPage() {
     }
   }
 
+  // 權限把關：僅限管理者
+  if (loading) return <Spinner />;
+  if (!user || !user.is_admin) return <NoPermission />;
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!matches) return <Spinner />;
 
@@ -85,7 +91,9 @@ export default function AdminPage() {
         {pending.length === 0 ? (
           <p className="py-6 text-center text-sm text-gray-400">沒有待更新的賽事</p>
         ) : (
-          pending.map((m) => <ResultRow key={m.id} match={m} onDone={load} />)
+          pending.map((m) => (
+            <ResultRow key={m.id} match={m} token={token!} onDone={load} />
+          ))
         )}
       </section>
 
@@ -93,7 +101,7 @@ export default function AdminPage() {
         <section className="mt-6 space-y-3">
           <h2 className="text-sm font-bold text-gray-500">已結算 ({finished.length})</h2>
           {finished.map((m) => (
-            <ResultRow key={m.id} match={m} onDone={load} finished />
+            <ResultRow key={m.id} match={m} token={token!} onDone={load} finished />
           ))}
         </section>
       )}
@@ -101,12 +109,28 @@ export default function AdminPage() {
   );
 }
 
+function NoPermission() {
+  return (
+    <main className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 text-gray-400">
+        <Lock size={28} />
+      </div>
+      <h1 className="mt-4 text-lg font-bold text-gray-800">需要管理者權限</h1>
+      <p className="mt-1 max-w-xs text-sm text-gray-400">
+        此頁僅供管理者使用。請以管理者帳號登入。
+      </p>
+    </main>
+  );
+}
+
 function ResultRow({
   match,
+  token,
   onDone,
   finished = false,
 }: {
   match: Match;
+  token: string;
   onDone: () => void;
   finished?: boolean;
 }) {
@@ -127,11 +151,15 @@ function ResultRow({
     setBusy(true);
     setErr(null);
     try {
-      await api.matches.updateResult(match.id, {
-        home_score: Number(home),
-        away_score: Number(away),
-        advancing_team: isKnockout && adv !== "" ? adv : null,
-      });
+      await api.matches.updateResult(
+        match.id,
+        {
+          home_score: Number(home),
+          away_score: Number(away),
+          advancing_team: isKnockout && adv !== "" ? adv : null,
+        },
+        token
+      );
       onDone();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "更新失敗");

@@ -89,6 +89,21 @@ def verify_google_id_token(id_token):
     }
 
 
+def _is_admin(username, email):
+    """依設定的管理者名單判定（email 或 username 命中即為管理者）。"""
+    emails = {
+        e.strip().lower()
+        for e in (current_app.config.get("ADMIN_EMAILS") or "").split(",")
+        if e.strip()
+    }
+    names = {
+        n.strip()
+        for n in (current_app.config.get("ADMIN_USERNAMES") or "").split(",")
+        if n.strip()
+    }
+    return bool((email and email.lower() in emails) or (username and username in names))
+
+
 def _get_or_create(provider, subject, username, email=None):
     """以 (provider, subject) 對應本地帳號；不存在則建立並配發初始道具。"""
     user = None
@@ -106,10 +121,15 @@ def _get_or_create(provider, subject, username, email=None):
         user = User(
             username=candidate, email=email,
             sso_provider=provider, sso_subject=subject,
+            is_admin=_is_admin(candidate, email),
         )  # 積分 / 道具走 model 預設值
         db.session.add(user)
         db.session.commit()
         leaderboard.sync_user(user)
+    elif _is_admin(user.username, user.email) and not user.is_admin:
+        # 既有帳號補授管理者（例如名單調整後）
+        user.is_admin = True
+        db.session.commit()
     return user
 
 

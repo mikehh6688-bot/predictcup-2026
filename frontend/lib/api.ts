@@ -131,20 +131,21 @@ export const api = {
       request<{ matches: Match[] }>(`/matches${status ? `?status=${status}` : ""}`),
     featured: () => request<{ matches: Match[] }>("/matches/featured"),
     get: (id: number) => request<MatchDetail>(`/matches/${id}`),
-    // 後台：更新賽果並觸發結算
+    // 後台（管理者）：更新賽果並觸發結算
     updateResult: (
       id: number,
-      body: { home_score: number; away_score: number; advancing_team?: "home" | "away" | null }
+      body: { home_score: number; away_score: number; advancing_team?: "home" | "away" | null },
+      token: string
     ) =>
       request<{ match: Match; settlement: { settled: number; affected_users: number } }>(
         `/matches/${id}/result`,
-        { method: "PATCH", body }
+        { method: "PATCH", body, token }
       ),
-    // 後台：自動上網收集最新賽果並重新結算
-    autoSync: () =>
+    // 後台（管理者）：自動上網收集最新賽果並重新結算
+    autoSync: (token: string) =>
       request<{ source: string; updated: number; settled: number }>(
         "/matches/auto-sync",
-        { method: "POST" }
+        { method: "POST", token }
       ),
   },
 
