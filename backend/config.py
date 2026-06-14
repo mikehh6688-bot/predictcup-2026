@@ -7,6 +7,11 @@ load_dotenv()
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
+# 視為不安全的預設密鑰（正式環境啟動時拒絕使用）
+INSECURE_SECRETS = {"dev-secret-key", "change-me", "change-me-in-production",
+                    "change-me-too", "dev-secret"}
+
+
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
 
@@ -18,6 +23,9 @@ class Config:
 
     # Redis（每日排行榜 / 熱門賽事狀態快取）
     REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+    # CORS 允許來源（逗號分隔；dev 預設全開，正式環境須收斂）
+    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
 
     # 業務規則常數（集中管理，方便日後調整）
     DEFAULT_POINTS = 100          # 註冊初始積分
@@ -59,6 +67,28 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
+    # 正式環境預設「關閉」開發暱稱登入（避免任意人冒充管理者）
+    ALLOW_DEV_LOGIN = os.environ.get("ALLOW_DEV_LOGIN", "false").lower() == "true"
+    # CORS 正式環境須明確設定（空字串 → 啟動時驗證會擋下）
+    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "")
+
+    @staticmethod
+    def validate():
+        """正式環境啟動前置檢查；任一不符即拒絕啟動（fail-fast）。"""
+        problems = []
+        if Config.SECRET_KEY in INSECURE_SECRETS:
+            problems.append("SECRET_KEY 仍為預設值，請設定強隨機值")
+        if Config.JWT_SECRET in INSECURE_SECRETS:
+            problems.append("JWT_SECRET 仍為預設值，請設定強隨機值")
+        if not Config.GOOGLE_CLIENT_ID:
+            problems.append("GOOGLE_CLIENT_ID 未設定（正式環境僅允許 Google 登入）")
+        origins = os.environ.get("CORS_ORIGINS", "")
+        if not origins or origins == "*":
+            problems.append("CORS_ORIGINS 未收斂（不可為空或 *），請設定前端網域")
+        if problems:
+            raise RuntimeError(
+                "正式環境設定不安全，拒絕啟動：\n  - " + "\n  - ".join(problems)
+            )
 
 
 config_map = {

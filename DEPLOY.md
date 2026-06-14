@@ -36,29 +36,43 @@ Compose 會起 Postgres + Redis + 後端（gunicorn，單 worker + 排程器）+
 - 必填環境變數見下表
 
 ## 環境變數
-| 變數 | 用途 | 必填 |
+| 變數 | 用途 | 正式環境 |
 |------|------|------|
-| `DATABASE_URL` | PostgreSQL 連線 | ✅ |
-| `REDIS_URL` | 排行榜快取 | ✅ |
-| `SECRET_KEY` / `JWT_SECRET` | Flask / JWT 簽章密鑰 | ✅（正式務必更換）|
-| `GOOGLE_CLIENT_ID` | 驗證 Google id_token audience | SSO 時 |
-| `ALLOW_DEV_LOGIN` | 是否允許暱稱直接登入（預設 true）| 正式建議 `false` |
+| `FLASK_ENV` | 設為 `production` 啟用前置安全檢查 | ✅ `production` |
+| `DATABASE_URL` | **託管** PostgreSQL 連線（含備份） | ✅ |
+| `REDIS_URL` | 排行榜快取 + 排程器分散式鎖 | ✅ |
+| `SECRET_KEY` / `JWT_SECRET` | Flask / JWT 簽章密鑰 | ✅ 強隨機（用預設值會拒絕啟動）|
+| `GOOGLE_CLIENT_ID` | Google 登入 audience（正式必填） | ✅ |
+| `CORS_ORIGINS` | 允許來源（逗號分隔，**不可為 `*`**） | ✅ 前端網域 |
+| `ALLOW_DEV_LOGIN` | 暱稱直登；正式預設 **false** | 保持 false |
 | `ANTHROPIC_API_KEY` | Claude 勝率預測（缺省走啟發式）| AI 時 |
-| `AI_MODEL` | 預設 `claude-opus-4-8` | 否 |
-| `SPORTS_API_KEY` | 第三方賽果同步（API-Football）| 自動同步時 |
-| `SCHEDULER_ENABLED` | 啟用 Cron 自動結算/同步 | 否 |
+| `SPORTS_API_KEY` | API-Football 賽果同步 | 自動同步時 |
+| `SCHEDULER_ENABLED` | 啟用 Cron 自動結算/同步 | 視部署 |
 | `GUNICORN_WORKERS` | gunicorn worker 數 | 否 |
 
-## ⚠️ 多 worker 與排程器
-排程器是**行程內** `BackgroundScheduler`，多個 gunicorn worker 會各自跑一份 →
-重複結算風險。正式環境二擇一：
-1. 跑 API 用多 worker、`SCHEDULER_ENABLED=false`，另起一個**單一**排程行程
-   （同映像、`SCHEDULER_ENABLED=true`、不開 web）。
-2. 關閉內建排程，改用平台 cron 定時打 `POST /api/v1/matches/sync-results`。
+> **正式環境啟動前置檢查**：`FLASK_ENV=production` 時，若 `SECRET_KEY`/`JWT_SECRET`
+> 仍為預設、未設 `GOOGLE_CLIENT_ID`、或 `CORS_ORIGINS` 為空/`*`，**應用會拒絕啟動**
+> 並列出原因（見 `config.py` 的 `ProductionConfig.validate()`）。
 
-## 正式環境檢查清單
-- [ ] 更換 `SECRET_KEY` / `JWT_SECRET` 為強隨機值
-- [ ] `ALLOW_DEV_LOGIN=false`，改用真實 Google SSO
-- [ ] CORS 收斂為前端網域（目前 `CORS(app)` 為全開，見 `app/__init__.py`）
-- [ ] 以 migration（`flask db`）取代 `create_all`
-- [ ] 排程器只在單一行程啟用
+## 資料庫 Migration
+schema 由 Alembic / Flask-Migrate 管理；容器啟動時 `entrypoint.sh` 自動執行
+`flask db upgrade`（冪等）。日後改 schema：
+```bash
+cd backend && FLASK_APP=run.py flask db migrate -m "描述"   # 產生 migration
+# 檢視 migrations/versions/ 後，部署時自動 upgrade
+```
+
+## ⚠️ 多 worker 與排程器
+排程器是行程內 `BackgroundScheduler`，但每個工作都以 **Redis 分散式鎖**
+（`SET NX EX`）保護 → 即使多 worker 同時觸發，同一時間也只有一個會執行，
+不會重複結算。仍建議：高負載時把排程獨立成單一行程，或關內建改用平台 cron
+打 `POST /api/v1/matches/auto-sync`（需管理者 JWT）。
+
+## 正式環境檢查清單（🔴 已內建強制）
+- [x] `SECRET_KEY` / `JWT_SECRET` 強隨機 — 啟動檢查強制
+- [x] `ALLOW_DEV_LOGIN=false` — 正式預設關閉
+- [x] Google 登入強制驗 `iss` / `aud` / `email_verified`
+- [x] CORS 收斂為前端網域 — 啟動檢查強制
+- [x] migration（`flask db upgrade`）取代 `create_all`
+- [x] 排程器以 Redis 鎖避免多 worker 重複結算
+- [ ] 託管 PostgreSQL / Redis 並開啟自動備份（基礎設施層，依平台設定）

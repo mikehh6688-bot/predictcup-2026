@@ -4,7 +4,7 @@ import os
 from flask import Flask
 from flask_cors import CORS
 
-from config import config_map
+from config import config_map, ProductionConfig
 from . import extensions
 from .extensions import db, migrate
 
@@ -16,10 +16,20 @@ def create_app(config_name=None, overrides=None):
     if overrides:
         app.config.update(overrides)  # 測試用設定覆寫
 
+    # 正式環境啟動前置檢查（密鑰 / Google / CORS）
+    if config_name == "production":
+        ProductionConfig.validate()
+
     # 擴充套件
     db.init_app(app)
     migrate.init_app(app, db)
-    CORS(app)  # 允許 Next.js 前端跨域呼叫
+
+    # CORS：依設定收斂來源（dev 預設 '*' 全開；正式須指定網域）
+    origins = app.config.get("CORS_ORIGINS", "*")
+    if origins and origins != "*":
+        CORS(app, origins=[o.strip() for o in origins.split(",") if o.strip()])
+    else:
+        CORS(app)
 
     # Redis（排行榜快取）— 延後匯入；無 REDIS_URL（如測試）則停用，
     # leaderboard 服務會自動退回 DB 直查。

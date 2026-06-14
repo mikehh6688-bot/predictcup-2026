@@ -78,9 +78,16 @@ def verify_google_id_token(id_token):
         raise AuthError("INVALID_ID_TOKEN", "Google id_token 無效")
 
     data = resp.json()
+    # 1) 簽發者
+    if data.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise AuthError("INVALID_ISS", "id_token 簽發者不符")
+    # 2) audience：設定了 client_id 就強制比對（正式環境必設）
     client_id = current_app.config.get("GOOGLE_CLIENT_ID")
     if client_id and data.get("aud") != client_id:
         raise AuthError("AUD_MISMATCH", "id_token audience 不符")
+    # 3) email 須已驗證
+    if str(data.get("email_verified", "")).lower() != "true":
+        raise AuthError("EMAIL_UNVERIFIED", "Google 帳號 email 未驗證")
 
     return {
         "sub": data.get("sub"),
