@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Settings, RefreshCw, Check, Lock } from "lucide-react";
+import { Settings, RefreshCw, Check, Lock, Sparkles } from "lucide-react";
 import { Spinner, ErrorState } from "@/components/states";
 import { useSession } from "@/components/SessionProvider";
 import { flagEmoji, STAGE_LABEL } from "@/lib/constants";
@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -43,12 +44,33 @@ export default function AdminPage() {
     try {
       const r = await api.matches.autoSync(token);
       const src = r.source === "wikipedia" ? "維基百科" : "API-Football";
-      setSyncMsg(`已從${src}更新 ${r.updated} 場、結算 ${r.settled} 場`);
+      setSyncMsg(
+        `已從${src}更新 ${r.updated} 場、結算 ${r.settled} 場、AI 生成 ${r.ai_generated} 場`
+      );
       load();
     } catch (e) {
       setSyncMsg(e instanceof ApiError ? e.message : "自動更新失敗");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function aiGenerate() {
+    if (!token) return;
+    setAiBusy(true);
+    setSyncMsg(null);
+    try {
+      const r = await api.matches.aiGenerateAll(token);
+      setSyncMsg(
+        r.generated > 0
+          ? `已生成 ${r.generated} 場 AI 勝率預測`
+          : "所有賽事都已有 AI 預測"
+      );
+      load();
+    } catch (e) {
+      setSyncMsg(e instanceof ApiError ? e.message : "AI 生成失敗");
+    } finally {
+      setAiBusy(false);
     }
   }
 
@@ -68,14 +90,24 @@ export default function AdminPage() {
           <Settings size={22} className="text-emerald-600" />
           <h1 className="text-lg font-bold text-gray-900">後台 · 更新賽果</h1>
         </span>
-        <button
-          onClick={autoSync}
-          disabled={syncing}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
-        >
-          <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
-          {syncing ? "更新中…" : "自動更新"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={aiGenerate}
+            disabled={aiBusy}
+            className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+          >
+            <Sparkles size={14} className={aiBusy ? "animate-pulse" : ""} />
+            {aiBusy ? "生成中…" : "AI 預測"}
+          </button>
+          <button
+            onClick={autoSync}
+            disabled={syncing}
+            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "更新中…" : "自動更新"}
+          </button>
+        </div>
       </header>
       <p className="mb-3 text-xs text-gray-400">
         「自動更新」上網抓最新比分並結算；也可手動輸入。已結算者可修正後重算。

@@ -10,8 +10,15 @@ from flask import current_app
 
 
 def auto_sync():
+    from . import ai_predictor
+
     if current_app.config.get("SPORTS_API_KEY"):
         from . import sports_api
-        return {"source": "api-football", **sports_api.import_fixtures()}
-    from . import wiki_provider
-    return {"source": "wikipedia", **wiki_provider.sync()}
+        result = {"source": "api-football", **sports_api.import_fixtures()}
+    else:
+        from . import wiki_provider
+        result = {"source": "wikipedia", **wiki_provider.sync()}
+
+    # 為新匯入 / 尚無預測的賽事自動補上 AI 勝率（只處理缺漏，可重複執行）
+    result["ai_generated"] = ai_predictor.generate_missing()
+    return result

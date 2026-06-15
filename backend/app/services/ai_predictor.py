@@ -112,6 +112,21 @@ def crowd_sentiment_from_bets(match_id):
     }
 
 
+def generate_missing():
+    """為所有「尚無 AI 預測」的賽事補生成（ai_home_win_prob 為 null）。
+
+    回傳生成場數。已有預測者略過 → 可重複呼叫、且接到 auto-sync 時只處理新賽程。
+    有 ANTHROPIC_API_KEY 時逐場呼叫 Claude；否則走啟發式（即時、零成本）。
+    """
+    from ..models import Match
+    from ..constants import STAGE_LABELS
+
+    pending = Match.query.filter(Match.ai_home_win_prob.is_(None)).all()
+    for match in pending:
+        generate_for_match(match, STAGE_LABELS.get(match.stage, "賽事"))
+    return len(pending)
+
+
 def generate_for_match(match, stage_label):
     """產生 AI 預測 + 網民風向並寫入 match（呼叫端負責 commit 或交由此處）。"""
     pred = predict_match(match.home_team, match.away_team, stage_label)

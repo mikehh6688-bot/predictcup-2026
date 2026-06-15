@@ -5,18 +5,11 @@ from flask import Blueprint, request
 
 from ..extensions import db
 from ..models import Match, Bet, AuditLog
-from ..constants import MatchStatus, MatchStage, BetChoice, STAGE_MULTIPLIER
+from ..constants import (
+    MatchStatus, MatchStage, BetChoice, STAGE_MULTIPLIER, STAGE_LABELS,
+)
 from ..services import settlement, ai_predictor, sports_api, audit
 from ._helpers import error, ok, parse_enum, admin_required
-
-STAGE_LABELS = {
-    MatchStage.GROUP: "小組賽",
-    MatchStage.R32: "32 強",
-    MatchStage.R16: "16 強",
-    MatchStage.QF: "8 強",
-    MatchStage.SF: "4 強",
-    MatchStage.FINAL: "決賽",
-}
 
 bp = Blueprint("matches", __name__)
 
@@ -172,7 +165,7 @@ def auto_sync(user):
     result = sync_service.auto_sync()
     audit.record(user, "auto_sync",
                  f"來源 {result.get('source')}：更新 {result.get('updated', 0)} 場、"
-                 f"結算 {result.get('settled', 0)} 場")
+                 f"結算 {result.get('settled', 0)} 場、AI 生成 {result.get('ai_generated', 0)} 場")
     return ok(result)
 
 
@@ -198,6 +191,15 @@ def ai_generate(user, match_id):
     pred = ai_predictor.generate_for_match(match, STAGE_LABELS.get(match.stage, "賽事"))
     audit.record(user, "ai_generate", f"#{match.id} {match.home_team} vs {match.away_team}")
     return ok({"match": match.to_dict(), "prediction": pred})
+
+
+@bp.post("/ai-generate-all")
+@admin_required
+def ai_generate_all(user):
+    """一鍵為所有「尚無 AI 預測」的賽事產生勝率與分析（管理者）。"""
+    n = ai_predictor.generate_missing()
+    audit.record(user, "ai_generate_all", f"補生成 {n} 場 AI 預測")
+    return ok({"generated": n})
 
 
 @bp.patch("/<int:match_id>/ai-prediction")

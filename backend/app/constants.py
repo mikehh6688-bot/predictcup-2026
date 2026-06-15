@@ -37,5 +37,15 @@ class BetChoice(enum.Enum):
     AWAY = "away"   # 客勝 / 客隊晉級
 
 
+# 賽事階段中文標籤（AI 分析 / 顯示共用）
+STAGE_LABELS = {
+    MatchStage.GROUP: "小組賽",
+    MatchStage.R32: "32 強",
+    MatchStage.R16: "16 強",
+    MatchStage.QF: "8 強",
+    MatchStage.SF: "4 強",
+    MatchStage.FINAL: "決賽",
+}
+
 # 結算規則常數
 EXACT_SCORE_BONUS = 50   # 精準比分紅利（不受倍率 / 翻倍卡影響）

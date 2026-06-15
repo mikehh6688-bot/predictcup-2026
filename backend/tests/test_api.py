@@ -196,6 +196,21 @@ def test_resettle_reverses_and_reapplies(client):
     assert me["total_points"] == 98
 
 
+def test_ai_generate_all_fills_missing(client):
+    admin = _admin(client)
+    _create_match(client)
+    _create_match(client, stage="round_of_16")
+    # 一鍵生成 → 2 場
+    r = client.post("/api/v1/matches/ai-generate-all", headers=admin)
+    assert r.status_code == 200 and r.get_json()["generated"] == 2
+    # 再次呼叫 → 0（已都有預測，可重入）
+    r2 = client.post("/api/v1/matches/ai-generate-all", headers=admin)
+    assert r2.get_json()["generated"] == 0
+    # 非管理者被擋
+    t, _ = _login(client, "john")
+    assert client.post("/api/v1/matches/ai-generate-all", headers=_auth(t)).status_code == 403
+
+
 def test_import_fixtures_no_key_is_safe(client):
     # 無 SPORTS_API_KEY → 安全回傳 0，不丟錯
     r = client.post("/api/v1/matches/import-fixtures", headers=_admin(client))

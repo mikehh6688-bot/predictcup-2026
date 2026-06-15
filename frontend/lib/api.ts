@@ -141,12 +141,18 @@ export const api = {
         `/matches/${id}/result`,
         { method: "PATCH", body, token }
       ),
-    // 後台（管理者）：自動上網收集最新賽果並重新結算
+    // 後台（管理者）：自動上網收集最新賽果並重新結算（含補生成 AI 預測）
     autoSync: (token: string) =>
-      request<{ source: string; updated: number; settled: number }>(
+      request<{ source: string; updated: number; settled: number; ai_generated: number }>(
         "/matches/auto-sync",
         { method: "POST", token }
       ),
+    // 後台（管理者）：一鍵為尚無預測的賽事生成 AI 勝率
+    aiGenerateAll: (token: string) =>
+      request<{ generated: number }>("/matches/ai-generate-all", {
+        method: "POST",
+        token,
+      }),
   },
 
   bets: {
