@@ -28,4 +28,4 @@ build/
 next-env.d.ts
 
 # 專案壓縮備份
-Fifa2026.zip
+*.zip
