@@ -52,6 +52,7 @@ cd frontend && npm run build                  # 型別檢查 + 建置
 - [後端 API 設計與結算規則](backend/API_DESIGN.md)
 - [部署指南](DEPLOY.md)
 - [🚀 上線當天操作手冊](GO_LIVE.md)
+- [🚂 Railway + Vercel 部署清單](DEPLOY_RAILWAY.md)
 
 ## 📝 授權
 [MIT](LICENSE) © 2026 Mike Hsieh
