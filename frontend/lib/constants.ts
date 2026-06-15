@@ -30,6 +30,7 @@ export function flagEmoji(code?: string | null): string {
 
 export const STAGE_LABEL: Record<string, string> = {
   group: "小組賽",
+  round_of_32: "32 強",
   round_of_16: "16 強",
   quarter_final: "8 強",
   semi_final: "4 強",

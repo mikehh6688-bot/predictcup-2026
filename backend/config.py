@@ -55,6 +55,10 @@ class Config:
     SPORTS_LEAGUE_ID = int(os.environ.get("SPORTS_LEAGUE_ID", "1"))
     SPORTS_SEASON = int(os.environ.get("SPORTS_SEASON", "2026"))
 
+    # --- 觀測 / 限流 ---
+    SENTRY_DSN = os.environ.get("SENTRY_DSN")  # 設定後啟用錯誤追蹤
+    RATELIMIT_DEFAULT = os.environ.get("RATELIMIT_DEFAULT", "200 per minute")
+
     # --- 排程器（Cron 自動結算 / 賽果同步）---
     SCHEDULER_ENABLED = os.environ.get("SCHEDULER_ENABLED", "false").lower() == "true"
     SETTLE_INTERVAL_MINUTES = int(os.environ.get("SETTLE_INTERVAL_MINUTES", "5"))

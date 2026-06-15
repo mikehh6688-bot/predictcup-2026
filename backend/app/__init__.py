@@ -6,7 +6,7 @@ from flask_cors import CORS
 
 from config import config_map, ProductionConfig
 from . import extensions
-from .extensions import db, migrate
+from .extensions import db, migrate, limiter
 
 
 def create_app(config_name=None, overrides=None):
@@ -20,9 +20,22 @@ def create_app(config_name=None, overrides=None):
     if config_name == "production":
         ProductionConfig.validate()
 
+    # 錯誤追蹤（設定 SENTRY_DSN 才啟用）
+    dsn = app.config.get("SENTRY_DSN")
+    if dsn:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+        sentry_sdk.init(dsn=dsn, integrations=[FlaskIntegration()],
+                        traces_sample_rate=0.1, environment=config_name)
+
     # 擴充套件
     db.init_app(app)
     migrate.init_app(app, db)
+
+    # 限流：storage 用 Redis（有則）否則記憶體；測試環境停用
+    app.config.setdefault("RATELIMIT_STORAGE_URI", app.config.get("REDIS_URL") or "memory://")
+    app.config["RATELIMIT_ENABLED"] = not app.config.get("TESTING", False)
+    limiter.init_app(app)
 
     # CORS：依設定收斂來源（dev 預設 '*' 全開；正式須指定網域）
     origins = app.config.get("CORS_ORIGINS", "*")
@@ -54,6 +67,26 @@ def create_app(config_name=None, overrides=None):
 
     @app.get("/health")
     def health():
+        """Liveness：行程存活即回 200。"""
         return {"status": "ok", "service": "predictcup-api"}
+
+    @app.get("/ready")
+    def ready():
+        """Readiness：DB / Redis 可用才回 200，否則 503（供 LB / k8s 探針）。"""
+        from sqlalchemy import text
+        checks = {"db": False, "redis": True}
+        try:
+            db.session.execute(text("SELECT 1"))
+            checks["db"] = True
+        except Exception:
+            db.session.rollback()
+        if extensions.redis_client is not None:
+            try:
+                checks["redis"] = bool(extensions.redis_client.ping())
+            except Exception:
+                checks["redis"] = False
+        ok_all = all(checks.values())
+        return ({"status": "ready" if ok_all else "degraded", "checks": checks},
+                200 if ok_all else 503)
 
     return app

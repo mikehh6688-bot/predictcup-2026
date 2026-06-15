@@ -1,7 +1,7 @@
 """投注引擎 — 下注 / 改注 / 取消（道具互斥、下注扣除、取消退還）。"""
 from flask import Blueprint, request
 
-from ..extensions import db
+from ..extensions import db, limiter
 from ..models import Bet, Match
 from ..constants import BetChoice
 from ..services import betting
@@ -12,6 +12,7 @@ bp = Blueprint("bets", __name__)
 
 @bp.post("")
 @login_required
+@limiter.limit("30 per minute")
 def place_bet(user):
     """下注（Betting Modal 送出）。"""
     data = request.get_json(silent=True) or {}

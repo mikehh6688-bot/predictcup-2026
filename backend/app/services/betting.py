@@ -14,6 +14,12 @@ from ..constants import MatchStatus, MatchStage, BetChoice
 from ..models import Bet, Match, User
 
 
+def _lock_user(user):
+    """鎖定使用者列（SELECT FOR UPDATE），序列化道具扣減避免併發重複扣。
+    SQLite 不支援 FOR UPDATE，會自動忽略（單機測試無妨）。"""
+    db.session.query(User).filter_by(id=user.id).with_for_update().first()
+
+
 class BettingError(Exception):
     """下注驗證失敗（呼叫端轉 400）。"""
     def __init__(self, code, message):
@@ -67,6 +73,7 @@ def place_bet(user, match, predicted_result, predicted_home_score=None,
     _validate_choice(match, predicted_result)
     _validate_items(use_double_card, use_insurance_card)
 
+    _lock_user(user)  # 序列化道具扣減
     if Bet.query.filter_by(user_id=user.id, match_id=match.id).first():
         raise BettingError("DUPLICATE_BET", "已對此賽事下注，請使用改注")
 
@@ -95,6 +102,7 @@ def update_bet(bet, predicted_result=None, predicted_home_score=None,
         raise BettingError("ALREADY_SETTLED", "注單已結算，無法修改")
     _validate_match_open(bet.match)
 
+    _lock_user(bet.user)  # 序列化道具補扣/退還
     new_double = bet.use_double_card if use_double_card is None else use_double_card
     new_insurance = bet.use_insurance_card if use_insurance_card is None else use_insurance_card
     _validate_items(new_double, new_insurance)
@@ -124,6 +132,7 @@ def cancel_bet(bet):
         raise BettingError("ALREADY_SETTLED", "注單已結算，無法取消")
     _validate_match_open(bet.match)
 
+    _lock_user(bet.user)  # 序列化道具退還
     # 退還道具
     if bet.use_double_card:
         bet.user.double_cards += 1

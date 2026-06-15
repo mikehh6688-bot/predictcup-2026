@@ -7,7 +7,7 @@ from datetime import datetime
 
 from ..extensions import db
 from ..constants import MatchStatus, MatchStage, BetChoice
-from ..models import Bet
+from ..models import Bet, Match
 from .scoring import calculate_settlement
 from . import leaderboard
 
@@ -29,6 +29,10 @@ def settle_match(match):
         raise SettlementError("賽果未填寫，無法結算")
     if match.stage != MatchStage.GROUP and match.advancing_team is None:
         raise SettlementError("淘汰賽須指定晉級隊伍（advancing_team）")
+
+    # 鎖定賽事列，序列化同場結算（排程器 + 後台同時觸發也不會重複計分）
+    # SQLite 不支援 FOR UPDATE 會自動忽略。
+    db.session.query(Match).filter_by(id=match.id).with_for_update().first()
 
     bets = Bet.query.filter_by(match_id=match.id).all()  # 全部注單（含已結算）
     affected = set()

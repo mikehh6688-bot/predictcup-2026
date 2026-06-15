@@ -220,3 +220,32 @@ def test_admin_endpoints_reject_non_admin(client):
     r = client.post("/api/v1/matches/auto-sync", headers=_auth(token))
     assert r.status_code == 403
     assert r.get_json()["error"]["code"] == "FORBIDDEN"
+
+
+# --- 🟠 production batch ---------------------------------------------------- #
+def test_r32_stage_multiplier(client):
+    m = _create_match(client, stage="round_of_32")
+    assert m["stage"] == "round_of_32"
+    assert m["multiplier"] == 2
+
+
+def test_readiness_probe(client):
+    # 測試環境停用 Redis → 只檢查 DB，應 ready
+    r = client.get("/ready")
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["status"] == "ready" and body["checks"]["db"] is True
+
+
+def test_audit_log_records_admin_action(client):
+    admin = _admin(client)
+    m = _create_match(client)  # create_match 會寫一筆稽核
+    client.patch(f"/api/v1/matches/{m['id']}/result", headers=admin,
+                 json={"home_score": 1, "away_score": 0})
+    r = client.get("/api/v1/matches/audit", headers=admin)
+    assert r.status_code == 200
+    actions = [log["action"] for log in r.get_json()["logs"]]
+    assert "update_result" in actions and "create_match" in actions
+    # 非管理者不可看稽核
+    t, _ = _login(client, "john")
+    assert client.get("/api/v1/matches/audit", headers=_auth(t)).status_code == 403

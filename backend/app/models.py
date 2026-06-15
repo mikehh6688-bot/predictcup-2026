@@ -21,7 +21,7 @@ from .extensions import db
 from .constants import MatchStatus, MatchStage, BetChoice, STAGE_MULTIPLIER
 
 __all__ = [
-    "User", "Match", "Bet", "League", "LeagueMember",
+    "User", "Match", "Bet", "League", "LeagueMember", "AuditLog",
     "MatchStatus", "MatchStage", "BetChoice", "STAGE_MULTIPLIER",
 ]
 
@@ -242,6 +242,28 @@ class League(db.Model):
         if include_members:
             data["members"] = [m.user_id for m in self.members]
         return data
+
+
+class AuditLog(db.Model):
+    """管理者操作稽核紀錄（誰、何時、做了什麼）。"""
+    __tablename__ = "audit_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    username = db.Column(db.String(50), nullable=True)   # 快照，帳號刪除後仍可追溯
+    action = db.Column(db.String(50), nullable=False, index=True)  # 如 update_result
+    detail = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "username": self.username,
+            "action": self.action,
+            "detail": self.detail,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
 
 
 class LeagueMember(db.Model):

@@ -10,8 +10,9 @@ class MatchStatus(enum.Enum):
 
 
 class MatchStage(enum.Enum):
-    """賽事階段 -> 對應積分倍率。"""
+    """賽事階段 -> 對應積分倍率（2026 新制：小組賽後為 32 強淘汰）。"""
     GROUP = "group"           # 小組賽   x1
+    R32 = "round_of_32"       # 32 強    x2
     R16 = "round_of_16"       # 16 強    x2
     QF = "quarter_final"      # 8 強     x2
     SF = "semi_final"         # 4 強     x5
@@ -21,6 +22,7 @@ class MatchStage(enum.Enum):
 # 階段 -> 倍率（單一真實來源）
 STAGE_MULTIPLIER = {
     MatchStage.GROUP: 1,
+    MatchStage.R32: 2,
     MatchStage.R16: 2,
     MatchStage.QF: 2,
     MatchStage.SF: 5,

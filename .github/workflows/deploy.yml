@@ -1,0 +1,80 @@
+name: Deploy
+
+# 推到 main 或打 tag 時，建置並推送容器映像至 GitHub Container Registry (GHCR)。
+# 實際「部署」步驟依平台而異（Railway / Render / Fly.io / Cloud Run），
+# 於最後一個 job 以 placeholder 呈現 —— 填入平台 CLI 或 deploy hook 即可。
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-push:
+    name: Build & push images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write          # 推送至 GHCR 需要
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-backend:latest
+            ${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          # 瀏覽器要連到的後端位址（編譯期注入）；用 repo/環境變數覆寫
+          build-args: NEXT_PUBLIC_API_BASE=${{ vars.NEXT_PUBLIC_API_BASE }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-frontend:latest
+            ${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to platform
+    runs-on: ubuntu-latest
+    needs: build-push
+    # 正式部署建議綁定 GitHub Environment（需審核 + 儲存平台密鑰）
+    environment: production
+    steps:
+      - name: Trigger platform deploy
+        run: |
+          echo "映像已推送："
+          echo "  ${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}"
+          echo "  ${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}"
+          echo ""
+          echo "在此呼叫你的平台部署（擇一）："
+          echo "  • Render   : curl -X POST \$RENDER_DEPLOY_HOOK"
+          echo "  • Railway  : railway up --service backend (需 RAILWAY_TOKEN)"
+          echo "  • Fly.io   : flyctl deploy --image ...     (需 FLY_API_TOKEN)"
+          echo "  • Cloud Run: gcloud run deploy ...          (需 GCP 認證)"
+          echo ""
+          echo "容器啟動時 entrypoint.sh 會自動執行 flask db upgrade。"
+        # 範例（取消註解並設好 secret 後啟用）：
+        # env:
+        #   RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        # run: curl -fsSL -X POST "$RENDER_DEPLOY_HOOK"

@@ -1,6 +1,7 @@
 """帳號與權限 — SSO 登入（Google / dev），簽發本地 JWT。"""
 from flask import Blueprint, request
 
+from ..extensions import limiter
 from ..services import auth as auth_service
 from ._helpers import error, ok, current_user
 
@@ -8,6 +9,7 @@ bp = Blueprint("auth", __name__)
 
 
 @bp.post("/sso")
+@limiter.limit("10 per minute")
 def sso_login():
     """SSO 登入，回傳本地 JWT。
 

@@ -18,6 +18,10 @@ python-dotenv==1.0.1
 PyJWT==2.9.0
 requests==2.32.3             # Google id_token 驗證 / 賽事 API
 
+# --- 正式環境強化 ---
+Flask-Limiter==3.8.0         # API 限流（登入 / 下注）
+sentry-sdk[flask]==2.14.0    # 錯誤追蹤（設 SENTRY_DSN 才啟用）
+
 # --- AI 微服務 (Phase 5) ---
 anthropic==0.69.0            # Claude 賽況分析與勝率預測
 

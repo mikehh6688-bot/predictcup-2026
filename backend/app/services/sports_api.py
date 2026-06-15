@@ -17,9 +17,10 @@ from . import settlement
 _FINISHED = {"FT", "AET", "PEN"}
 _LIVE = {"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "INT"}
 
-# league.round 關鍵字 → 賽事階段
+# league.round 關鍵字 → 賽事階段（"32" 須在 "16" 之前比對）
 _ROUND_TO_STAGE = [
     ("group", MatchStage.GROUP),
+    ("32", MatchStage.R32),
     ("16", MatchStage.R16),
     ("quarter", MatchStage.QF),
     ("semi", MatchStage.SF),

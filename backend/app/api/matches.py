@@ -4,13 +4,14 @@ from datetime import datetime
 from flask import Blueprint, request
 
 from ..extensions import db
-from ..models import Match, Bet
+from ..models import Match, Bet, AuditLog
 from ..constants import MatchStatus, MatchStage, BetChoice, STAGE_MULTIPLIER
-from ..services import settlement, ai_predictor, sports_api
+from ..services import settlement, ai_predictor, sports_api, audit
 from ._helpers import error, ok, parse_enum, admin_required
 
 STAGE_LABELS = {
     MatchStage.GROUP: "小組賽",
+    MatchStage.R32: "32 強",
     MatchStage.R16: "16 強",
     MatchStage.QF: "8 強",
     MatchStage.SF: "4 強",
@@ -115,6 +116,8 @@ def create_match(user):
     )
     db.session.add(match)
     db.session.commit()
+    audit.record(user, "create_match",
+                 f"#{match.id} {match.home_team} vs {match.away_team}（{stage.value}）")
     return ok(match.to_dict(), 201)
 
 
@@ -151,6 +154,9 @@ def update_result(user, match_id):
         db.session.rollback()
         return error("SETTLEMENT_ERROR", str(e))
 
+    audit.record(user, "update_result",
+                 f"#{match.id} {match.home_team} {match.home_score}:"
+                 f"{match.away_score} {match.away_team}（結算 {result['settled']} 注）")
     return ok({"match": match.to_dict(), "settlement": result})
 
 
@@ -163,7 +169,11 @@ def auto_sync(user):
     可重複執行（結算為可重入）。
     """
     from ..services import sync_service
-    return ok(sync_service.auto_sync())
+    result = sync_service.auto_sync()
+    audit.record(user, "auto_sync",
+                 f"來源 {result.get('source')}：更新 {result.get('updated', 0)} 場、"
+                 f"結算 {result.get('settled', 0)} 場")
+    return ok(result)
 
 
 @bp.post("/import-fixtures")
@@ -186,6 +196,7 @@ def ai_generate(user, match_id):
     if match is None:
         return error("NOT_FOUND", "賽事不存在", 404)
     pred = ai_predictor.generate_for_match(match, STAGE_LABELS.get(match.stage, "賽事"))
+    audit.record(user, "ai_generate", f"#{match.id} {match.home_team} vs {match.away_team}")
     return ok({"match": match.to_dict(), "prediction": pred})
 
 
@@ -205,3 +216,11 @@ def update_ai_prediction(user, match_id):
             setattr(match, field, data[field])
     db.session.commit()
     return ok(match.to_dict())
+
+
+@bp.get("/audit")
+@admin_required
+def list_audit(user):
+    """管理者操作稽核紀錄（最近 100 筆）。"""
+    logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(100).all()
+    return ok({"logs": [a.to_dict() for a in logs]})
