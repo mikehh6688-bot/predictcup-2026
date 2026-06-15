@@ -37,8 +37,8 @@
    - 前端 → `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
 5. OAuth consent screen 設為 External / 填基本資訊（測試期可 Testing 模式加白名單）
 
-> Mike 用 `mike.hsieh72@gmail.com` 登入會**自動成為管理者**（`ADMIN_EMAILS` 預設值）。
-> 要換管理者就設 `ADMIN_EMAILS=你的@gmail.com`（逗號分隔可多人）。
+> **設定管理者**：把你的 Google email 填進後端環境變數 `ADMIN_EMAILS`（逗號分隔可多人），
+> 該 email 用 Google 登入後即自動成為管理者。
 
 ---
 
@@ -134,7 +134,7 @@ curl -s "$API/matches?status=scheduled" | head # 有賽事
 curl -s $API/leaderboard/global               # 200（可能空）
 ```
 瀏覽器走一輪：
-- [ ] `app.例.com` →「我的」→ **Google 登入**（用 `mike.hsieh72@gmail.com`）
+- [ ] `app.例.com` →「我的」→ **Google 登入**（用 `<你的管理者 Gmail>`）
 - [ ] 個人中心出現「**後台 · 更新賽果**」入口（= Mike 是管理者 ✅）
 - [ ] 進後台點「自動更新」→ 顯示「已更新 N 場」
 - [ ] 一般帳號登入 → **看不到**後台、直接開 `/admin` 顯示「需要管理者權限」
