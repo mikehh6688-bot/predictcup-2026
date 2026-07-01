@@ -54,6 +54,7 @@ cd frontend && npm run build                  # 型別檢查 + 建置
 - [🚀 上線當天操作手冊](GO_LIVE.md)
 - [🚂 Railway + Vercel 部署清單](DEPLOY_RAILWAY.md)
 - [🎯 Vibe Coding 開發案例](CASE_STUDY.md)
+- [🤝 新維護者接手指南](HANDOFF.md)
 
 ## 📝 授權
 [MIT](LICENSE) © 2026 Mike Hsieh
